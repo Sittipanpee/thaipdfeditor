@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ThaiPDFEditor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">thaipdfeditor</p>
+          <h1>แก้ไข PDF บนเครื่องคุณโดยตรง</h1>
+          <p class="hero-copy">
+            ทุกการประมวลผลเกิดในเบราว์เซอร์ ไฟล์ PDF และรูปภาพไม่ถูกอัปโหลดไปเก็บบนเซิร์ฟเวอร์ของแอพนี้
+          </p>
+        </div>
+        <div class="privacy-card">
+          <span class="privacy-badge">Local-first</span>
+          <ul class="privacy-points">
+            <li>ไม่ฝากไฟล์ PDF</li>
+            <li>ไม่มีบัญชีผู้ใช้</li>
+            <li>โหลดเสร็จแล้วทำงานออฟไลน์ต่อได้บางส่วน</li>
+          </ul>
+        </div>
+      </header>
+
+      <main class="main-grid">
+        <section class="catalog">
+          <div class="section-head">
+            <h2>เครื่องมือหลัก</h2>
+            <p>โหมดที่มีปุ่มสีเข้มคือพร้อมใช้งานตอนนี้</p>
+          </div>
+          <div class="tool-columns" id="toolCatalog"></div>
+        </section>
+
+        <section class="workbench">
+          <div class="section-head">
+            <div>
+              <h2 id="toolTitle">Merge PDF</h2>
+              <p id="toolSummary">รวมไฟล์ PDF หลายไฟล์เป็นฉบับเดียว โดยจัดลำดับก่อนดาวน์โหลดได้</p>
+            </div>
+            <button class="ghost-button" id="clearWorkspaceButton" type="button">
+              ล้างงาน
+            </button>
+          </div>
+
+          <div class="dropzone" id="dropzone">
+            <input id="fileInput" type="file" hidden />
+            <div class="dropzone-copy">
+              <p id="dropzoneTitle">ลากไฟล์ PDF มาวาง หรือกดเลือกไฟล์</p>
+              <p id="dropzoneHint">รองรับการประมวลผลในเบราว์เซอร์เท่านั้น</p>
+            </div>
+            <button class="primary-button" id="pickFilesButton" type="button">
+              เลือกไฟล์
+            </button>
+          </div>
+
+          <div class="controls-panel" id="controlsPanel"></div>
+          <div class="status-line" id="statusLine">พร้อมทำงาน</div>
+          <div class="workspace-content" id="workspaceContent"></div>
+        </section>
+      </main>
+    </div>
+
+    <template id="downloadCardTemplate">
+      <article class="download-card">
+        <div>
+          <p class="download-title"></p>
+          <p class="download-meta"></p>
+        </div>
+        <a class="primary-button small-button download-link" download>ดาวน์โหลด</a>
+      </article>
+    </template>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
