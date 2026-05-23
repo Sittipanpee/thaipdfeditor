@@ -192,6 +192,7 @@ const state = {
   stampFields: [],
   selectedPreviewPage: 1,
   dragFieldId: null,
+  selectedFieldId: null,
 };
 
 const toolCatalog = document.querySelector("#toolCatalog");
@@ -423,10 +424,6 @@ function renderControls() {
     wrap.innerHTML = `
       <div class="control-row">
         <div class="field">
-          <label for="fieldName">ชื่อ field</label>
-          <input id="fieldName" type="text" value="approvedDate" />
-        </div>
-        <div class="field">
           <label for="fieldType">ชนิด</label>
           <select id="fieldType">
             <option value="date">Date stamp</option>
@@ -434,16 +431,12 @@ function renderControls() {
             <option value="calculated">Calculated field</option>
           </select>
         </div>
-        <div class="field">
-          <label for="fieldSize">ขนาด</label>
-          <input id="fieldSize" type="number" min="10" max="36" value="16" />
-        </div>
-      </div>
-      <div class="control-row">
         <div class="field wide">
           <label for="fieldValue" id="fieldValueLabel">ข้อความ / สูตร</label>
           <input id="fieldValue" type="text" value="" placeholder="date: เว้นว่างได้, calculated: page + '/' + totalPages" />
         </div>
+      </div>
+      <div class="control-row">
         <div class="field">
           <label for="fieldColor">สีตัวอักษร</label>
           <input id="fieldColor" type="color" value="#5c3821" />
@@ -451,6 +444,10 @@ function renderControls() {
         <div class="field">
           <label for="fieldFill">สีตราประทับ</label>
           <input id="fieldFill" type="color" value="#f8d5bc" />
+        </div>
+        <div class="field">
+          <label for="fieldBorder">สีกรอบ</label>
+          <input id="fieldBorder" type="color" value="#aa6a43" />
         </div>
       </div>
       <div class="control-row">
@@ -547,6 +544,7 @@ function resetWorkspace() {
   state.stampFields = [];
   state.selectedPreviewPage = 1;
   state.dragFieldId = null;
+  state.selectedFieldId = null;
   workspaceContent.innerHTML = "";
   if (getActiveTool().enabled) {
     renderControls();
@@ -763,19 +761,24 @@ function mutatePreview(action, index) {
 
 function addStampField() {
   if (!state.previews.length) return setStatus("เลือก PDF ก่อน", true);
+  const nextIndex = state.stampFields.length + 1;
   const field = {
     id: `field-${crypto.randomUUID()}`,
-    name: (document.querySelector("#fieldName")?.value || "field").trim() || "field",
+    name: `field_${nextIndex}`,
     type: document.querySelector("#fieldType")?.value || "date",
     value: document.querySelector("#fieldValue")?.value || "",
-    fontSize: Math.max(10, Number(document.querySelector("#fieldSize")?.value || "16")),
+    fontSize: 16,
     textColor: document.querySelector("#fieldColor")?.value || "#5c3821",
     fillColor: document.querySelector("#fieldFill")?.value || "#f8d5bc",
+    borderColor: document.querySelector("#fieldBorder")?.value || "#aa6a43",
     pageNumber: state.selectedPreviewPage,
     xPct: 0.08,
     yPct: Math.min(0.72, 0.1 + state.stampFields.filter((item) => item.pageNumber === state.selectedPreviewPage).length * 0.12),
+    boxWidth: 170,
+    editingName: false,
   };
   state.stampFields.push(field);
+  state.selectedFieldId = field.id;
   renderStampWorkbench();
   setStatus(`เพิ่ม field ${field.name} แล้ว`, false);
 }
@@ -807,22 +810,33 @@ function renderStampWorkbench() {
         ${fieldsForPage
           .map((field) => {
             const text = escapeHtml(computeFieldText(field, selected.pageNumber, state.previews.length));
+            const isSelected = field.id === state.selectedFieldId;
             return `
-              <button
-                class="stamp-box"
-                type="button"
+              <article
+                class="stamp-box${isSelected ? " selected" : ""}"
                 data-field-id="${field.id}"
                 style="
                   left:${field.xPct * 100}%;
                   top:${field.yPct * 100}%;
                   font-size:${field.fontSize}px;
+                  width:${field.boxWidth}px;
                   color:${field.textColor};
                   background:${hexToRgba(field.fillColor, 0.9)};
+                  border-color:${field.borderColor};
                 "
               >
-                <span class="stamp-box-name">${escapeHtml(field.name)}</span>
-                <span class="stamp-box-value">${text}</span>
-              </button>
+                <button class="stamp-box-head" type="button" data-field-head="${field.id}">
+                  ${
+                    field.editingName
+                      ? `<input class="stamp-box-name-input" data-field-name-input="${field.id}" value="${escapeHtml(field.name)}" />`
+                      : `<span class="stamp-box-name">${escapeHtml(field.name)}</span>`
+                  }
+                </button>
+                <div class="stamp-box-body" data-field-drag="${field.id}">
+                  <span class="stamp-box-value">${text}</span>
+                </div>
+                <button class="stamp-box-resize" type="button" aria-label="resize field" data-field-resize="${field.id}"></button>
+              </article>
             `;
           })
           .join("")}
@@ -854,6 +868,7 @@ function renderStampWorkbench() {
         <p class="download-meta">หน้า ${field.pageNumber} · ${field.type} · ${escapeHtml(computeFieldText(field, field.pageNumber, state.previews.length))}</p>
       </div>
       <div class="queue-actions">
+        <button class="mini-button" type="button" data-field-action="select" data-field-id="${field.id}">เลือก</button>
         <button class="mini-button" type="button" data-field-action="jump" data-field-id="${field.id}">ดู</button>
         <button class="mini-button" type="button" data-field-action="delete" data-field-id="${field.id}">ลบ</button>
       </div>
@@ -866,12 +881,18 @@ function renderStampWorkbench() {
     const fieldId = button.dataset.fieldId;
     if (button.dataset.fieldAction === "delete") {
       state.stampFields = state.stampFields.filter((field) => field.id !== fieldId);
+      if (state.selectedFieldId === fieldId) state.selectedFieldId = null;
+      renderStampWorkbench();
+    }
+    if (button.dataset.fieldAction === "select") {
+      state.selectedFieldId = fieldId;
       renderStampWorkbench();
     }
     if (button.dataset.fieldAction === "jump") {
       const field = state.stampFields.find((item) => item.id === fieldId);
       if (!field) return;
       state.selectedPreviewPage = field.pageNumber;
+      state.selectedFieldId = fieldId;
       renderStampWorkbench();
     }
   });
@@ -889,33 +910,120 @@ function installStampDragging() {
   let dragging = null;
 
   stage.querySelectorAll(".stamp-box").forEach((box) => {
-    box.addEventListener("pointerdown", (event) => {
-      dragging = { fieldId: box.dataset.fieldId };
-      box.setPointerCapture(event.pointerId);
+    const fieldId = box.dataset.fieldId;
+    const body = box.querySelector("[data-field-drag]");
+    const head = box.querySelector("[data-field-head]");
+    const nameInput = box.querySelector("[data-field-name-input]");
+    const resizeHandle = box.querySelector("[data-field-resize]");
+
+    box.addEventListener("click", () => {
+      state.selectedFieldId = fieldId;
+      state.stampFields.forEach((field) => {
+        if (field.id !== fieldId) field.editingName = false;
+      });
+    });
+
+    head?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const field = state.stampFields.find((item) => item.id === fieldId);
+      if (!field) return;
+      state.selectedFieldId = fieldId;
+      state.stampFields.forEach((item) => {
+        item.editingName = item.id === fieldId;
+      });
+      renderStampWorkbench();
+    });
+
+    nameInput?.addEventListener("click", (event) => event.stopPropagation());
+    nameInput?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        commitFieldName(fieldId, event.currentTarget.value);
+      }
+      if (event.key === "Escape") {
+        const field = state.stampFields.find((item) => item.id === fieldId);
+        if (!field) return;
+        field.editingName = false;
+        renderStampWorkbench();
+      }
+    });
+    nameInput?.addEventListener("blur", (event) => commitFieldName(fieldId, event.currentTarget.value));
+
+    body?.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+      const field = state.stampFields.find((item) => item.id === fieldId);
+      if (!field) return;
+      state.selectedFieldId = fieldId;
+      dragging = { mode: "move", fieldId };
+      body.setPointerCapture(event.pointerId);
       box.classList.add("is-dragging");
     });
-    box.addEventListener("pointermove", (event) => {
-      if (!dragging || dragging.fieldId !== box.dataset.fieldId) return;
+    body?.addEventListener("pointermove", (event) => {
+      if (!dragging || dragging.fieldId !== fieldId || dragging.mode !== "move") return;
       const rect = stage.getBoundingClientRect();
-      const xPct = clamp((event.clientX - rect.left) / rect.width, 0.02, 0.9);
-      const yPct = clamp((event.clientY - rect.top) / rect.height, 0.02, 0.9);
-      const field = state.stampFields.find((item) => item.id === box.dataset.fieldId);
+      const xPct = clamp((event.clientX - rect.left) / rect.width, 0.02, 0.95);
+      const yPct = clamp((event.clientY - rect.top) / rect.height, 0.02, 0.95);
+      const field = state.stampFields.find((item) => item.id === fieldId);
       if (!field) return;
       field.xPct = xPct;
       field.yPct = yPct;
       box.style.left = `${xPct * 100}%`;
       box.style.top = `${yPct * 100}%`;
     });
-    const release = (event) => {
-      if (!dragging || dragging.fieldId !== box.dataset.fieldId) return;
-      dragging = null;
-      box.releasePointerCapture?.(event.pointerId);
-      box.classList.remove("is-dragging");
-      renderStampWorkbench();
-    };
-    box.addEventListener("pointerup", release);
-    box.addEventListener("pointercancel", release);
+    body?.addEventListener("pointerup", (event) => releaseDrag(event, box, body));
+    body?.addEventListener("pointercancel", (event) => releaseDrag(event, box, body));
+
+    resizeHandle?.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+      const field = state.stampFields.find((item) => item.id === fieldId);
+      if (!field) return;
+      dragging = {
+        mode: "resize",
+        fieldId,
+        startX: event.clientX,
+        startY: event.clientY,
+        startWidth: field.boxWidth,
+        startFontSize: field.fontSize,
+      };
+      resizeHandle.setPointerCapture(event.pointerId);
+      box.classList.add("is-dragging");
+    });
+    resizeHandle?.addEventListener("pointermove", (event) => {
+      if (!dragging || dragging.fieldId !== fieldId || dragging.mode !== "resize") return;
+      const field = state.stampFields.find((item) => item.id === fieldId);
+      if (!field) return;
+      const delta = Math.max(event.clientX - dragging.startX, event.clientY - dragging.startY);
+      field.boxWidth = clamp(dragging.startWidth + delta, 120, 360);
+      field.fontSize = clamp(dragging.startFontSize + delta * 0.08, 10, 36);
+      box.style.width = `${field.boxWidth}px`;
+      box.style.fontSize = `${field.fontSize}px`;
+    });
+    resizeHandle?.addEventListener("pointerup", (event) => releaseDrag(event, box, resizeHandle));
+    resizeHandle?.addEventListener("pointercancel", (event) => releaseDrag(event, box, resizeHandle));
   });
+
+  const activeInput = stage.querySelector(".stamp-box-name-input");
+  if (activeInput) {
+    activeInput.focus();
+    activeInput.select();
+  }
+
+  function releaseDrag(event, box, captureNode) {
+    if (!dragging || dragging.fieldId !== box.dataset.fieldId) return;
+    dragging = null;
+    captureNode.releasePointerCapture?.(event.pointerId);
+    box.classList.remove("is-dragging");
+    renderStampWorkbench();
+  }
+}
+
+function commitFieldName(fieldId, rawName) {
+  const field = state.stampFields.find((item) => item.id === fieldId);
+  if (!field) return;
+  field.name = (rawName || "").trim() || field.name;
+  field.editingName = false;
+  state.selectedFieldId = fieldId;
+  renderStampWorkbench();
 }
 
 async function runMerge() {
@@ -1090,13 +1198,13 @@ async function runStampFields() {
     const paddingY = 8;
     const text = normalizeThai(computeFieldText(field, field.pageNumber, totalPages));
     const textWidth = regularFont.widthOfTextAtSize(text, field.fontSize);
-    const rectWidth = textWidth + paddingX * 2;
+    const rectWidth = Math.max(field.boxWidth || 0, textWidth + paddingX * 2);
     const rectHeight = field.fontSize + paddingY * 2;
     const x = field.xPct * width;
     const topY = field.yPct * height;
     const y = height - topY - rectHeight;
     const fill = hexToRgb(field.fillColor);
-    const stroke = hexToRgb("#aa6a43");
+    const stroke = hexToRgb(field.borderColor || "#aa6a43");
     const textColor = hexToRgb(field.textColor);
 
     page.drawRectangle({
