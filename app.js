@@ -143,11 +143,11 @@ const tools = [
   },
   {
     id: "stamp-fields",
-    name: "Stamp & fields",
+    name: "ตราประทับและช่องข้อมูล",
     group: "Edit PDF",
     color: "#b47aaa",
     icon: "F",
-    summary: "สร้างตราประทับ วันที่ และ calculated field โดยลากวางบนหน้า PDF ได้",
+    summary: "สร้างตราประทับ วันที่ และช่องคำนวณโดยลากวางบนหน้า PDF ได้",
     accept: ".pdf",
     multiple: false,
     enabled: true,
@@ -259,9 +259,11 @@ function renderCatalog() {
           <span class="tool-name">${tool.name}</span>
           <span class="tool-caption">${tool.summary}</span>
         </span>
-        <span class="tool-state">${tool.enabled ? "Live" : "Soon"}</span>
+        <span class="tool-state">${tool.enabled ? "พร้อมใช้" : "รอเปิด"}</span>
       `;
+      button.disabled = !tool.enabled;
       button.addEventListener("click", () => {
+        if (!tool.enabled) return;
         state.activeToolId = tool.id;
         resetWorkspace();
         renderCatalog();
@@ -426,14 +428,14 @@ function renderControls() {
         <div class="field">
           <label for="fieldType">ชนิด</label>
           <select id="fieldType">
-            <option value="date">Date stamp</option>
-            <option value="text">Text field</option>
-            <option value="calculated">Calculated field</option>
+            <option value="date">วันที่</option>
+            <option value="text">ข้อความ</option>
+            <option value="calculated">ช่องคำนวณ</option>
           </select>
         </div>
         <div class="field wide">
           <label for="fieldValue" id="fieldValueLabel">ข้อความ / สูตร</label>
-          <input id="fieldValue" type="text" value="" placeholder="date: เว้นว่างได้, calculated: page + '/' + totalPages" />
+          <input id="fieldValue" type="text" value="" placeholder="วันที่เว้นว่างได้ / สูตรใช้ page และ totalPages" />
         </div>
       </div>
       <div class="control-row">
@@ -453,13 +455,13 @@ function renderControls() {
       <div class="control-row">
         <div class="field wide">
           <label for="fieldHint">ตัวอย่างสูตร</label>
-          <input id="fieldHint" type="text" value="ใช้ page, totalPages, date เช่น 'หน้า ' + page + ' / ' + totalPages" disabled />
+          <input id="fieldHint" type="text" value="สูตรตัวอย่าง: 'หน้า ' + page + ' / ' + totalPages" disabled />
         </div>
         <div class="field">
           <label>ดำเนินการ</label>
           <div class="stack-actions">
-            <button class="primary-button" id="addFieldButton" type="button">เพิ่ม field</button>
-            <button class="ghost-button" id="exportStampButton" type="button">สร้าง PDF</button>
+            <button class="primary-button" id="addFieldButton" type="button">เพิ่มช่อง</button>
+            <button class="ghost-button" id="exportStampButton" type="button">สร้างไฟล์</button>
           </div>
         </div>
       </div>
@@ -522,13 +524,13 @@ function syncFieldLabels() {
   const input = document.querySelector("#fieldValue");
   if (!label || !input) return;
   if (type === "date") {
-    label.textContent = "ข้อความนำหน้า (ถ้ามี)";
+    label.textContent = "ข้อความนำหน้า";
     input.placeholder = "เช่น อนุมัติเมื่อ";
   } else if (type === "text") {
     label.textContent = "ข้อความ";
     input.placeholder = "ข้อความที่ต้องการแสดง";
   } else {
-    label.textContent = "สูตร";
+    label.textContent = "สูตรคำนวณ";
     input.placeholder = "'หน้า ' + page + ' / ' + totalPages";
   }
 }
@@ -772,15 +774,22 @@ function addStampField() {
     fillColor: document.querySelector("#fieldFill")?.value || "#f8d5bc",
     borderColor: document.querySelector("#fieldBorder")?.value || "#aa6a43",
     pageNumber: state.selectedPreviewPage,
-    xPct: 0.08,
-    yPct: Math.min(0.72, 0.1 + state.stampFields.filter((item) => item.pageNumber === state.selectedPreviewPage).length * 0.12),
+    xPct: 0.5,
+    yPct: Math.min(0.72, 0.28 + state.stampFields.filter((item) => item.pageNumber === state.selectedPreviewPage).length * 0.1),
     boxWidth: 170,
     editingName: false,
   };
   state.stampFields.push(field);
   state.selectedFieldId = field.id;
   renderStampWorkbench();
-  setStatus(`เพิ่ม field ${field.name} แล้ว`, false);
+  requestAnimationFrame(() => {
+    document.querySelector(`[data-field-id="${field.id}"]`)?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+      inline: "center",
+    });
+  });
+  setStatus(`เพิ่ม ${field.name} แล้ว ลากเพื่อวางตำแหน่ง หรือกดชื่อด้านบนเพื่อเปลี่ยนชื่อ`, false);
 }
 
 function renderStampWorkbench() {
@@ -793,7 +802,7 @@ function renderStampWorkbench() {
   wrapper.innerHTML = `
     <aside class="stamp-sidebar">
       <div class="chip-row">
-        <span class="chip">ลาก field บนหน้าได้</span>
+        <span class="chip">ลากเพื่อวาง</span>
         <span class="chip">รองรับไทย</span>
       </div>
       <div class="stamp-thumbs"></div>
@@ -806,6 +815,7 @@ function renderStampWorkbench() {
         </div>
       </div>
       <div class="stamp-stage" id="stampStage">
+        <div class="placement-hint">ลากช่องเพื่อวางบนหน้า · ดึงมุมเพื่อปรับขนาด</div>
         <img src="${selected.stageDataUrl}" alt="preview page ${selected.pageNumber}" />
         ${fieldsForPage
           .map((field) => {
@@ -826,6 +836,7 @@ function renderStampWorkbench() {
                 "
               >
                 <button class="stamp-box-head" type="button" data-field-head="${field.id}">
+                  <span class="stamp-box-grip" aria-hidden="true"></span>
                   ${
                     field.editingName
                       ? `<input class="stamp-box-name-input" data-field-name-input="${field.id}" value="${escapeHtml(field.name)}" />`
@@ -865,7 +876,7 @@ function renderStampWorkbench() {
     card.innerHTML = `
       <div>
         <p class="download-title">${escapeHtml(field.name)}</p>
-        <p class="download-meta">หน้า ${field.pageNumber} · ${field.type} · ${escapeHtml(computeFieldText(field, field.pageNumber, state.previews.length))}</p>
+        <p class="download-meta">หน้า ${field.pageNumber} · ${fieldTypeLabel(field.type)} · ${escapeHtml(computeFieldText(field, field.pageNumber, state.previews.length))}</p>
       </div>
       <div class="queue-actions">
         <button class="mini-button" type="button" data-field-action="select" data-field-id="${field.id}">เลือก</button>
@@ -1200,9 +1211,9 @@ async function runStampFields() {
     const textWidth = regularFont.widthOfTextAtSize(text, field.fontSize);
     const rectWidth = Math.max(field.boxWidth || 0, textWidth + paddingX * 2);
     const rectHeight = field.fontSize + paddingY * 2;
-    const x = field.xPct * width;
+    const x = clamp(field.xPct * width - rectWidth / 2, 0, Math.max(0, width - rectWidth));
     const topY = field.yPct * height;
-    const y = height - topY - rectHeight;
+    const y = clamp(height - topY - rectHeight / 2, 0, Math.max(0, height - rectHeight));
     const fill = hexToRgb(field.fillColor);
     const stroke = hexToRgb(field.borderColor || "#aa6a43");
     const textColor = hexToRgb(field.textColor);
@@ -1301,7 +1312,7 @@ async function createDownload({ bytes, name, meta, mime }) {
   const url = URL.createObjectURL(blob);
   state.downloads.push({ url, name, meta });
   renderDownloads();
-  setStatus(`สร้างไฟล์ ${name} แล้ว`, false);
+  setStatus(`พร้อมดาวน์โหลด ${name}`, false);
 }
 
 function renderDownloads() {
@@ -1378,6 +1389,14 @@ function computeFieldText(field, pageNumber, totalPages) {
   } catch {
     return normalizeThai(`ERR:${field.name}`);
   }
+}
+
+function fieldTypeLabel(type) {
+  return {
+    date: "วันที่",
+    text: "ข้อความ",
+    calculated: "คำนวณ",
+  }[type] || type;
 }
 
 async function embedThaiFont(pdf) {
